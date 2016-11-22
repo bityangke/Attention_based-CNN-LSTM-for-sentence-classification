@@ -1,0 +1,52 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Nov 12 10:29:43 2016
+
+@author: Administrator
+"""
+from keras.models import Sequential
+from keras.layers import Dense, Activation,Layer,merge
+from keras.layers import Merge
+from keras.utils.visualize_util import plot
+from keras import backend as K
+import numpy as np
+
+
+
+left_branch = Sequential()
+left_branch.add(Dense(32, input_dim=600))
+
+right_branch = Sequential()
+right_branch.add(Dense(32, input_dim=600))
+
+def cosine(x):
+    axis = len(x[0]._keras_shape)-1
+    dot = lambda a, b: K.batch_dot(a, b, axes=axis)
+    return dot(x[0], x[1]) / K.sqrt(dot(x[0], x[0]) * dot(x[1], x[1]))
+    
+def similarity(x):
+    return (x[0] * x[1]).sum() / (np.sqrt((x[0] * x[0]).sum()) * np.sqrt((x[1] * x[1]).sum()))*x[0]
+    
+merged = Merge([left_branch, right_branch], mode='cos',output_shape=lambda x: x[0])
+
+model = Sequential()
+model.add(merged)
+model.add(Dense(10, activation='softmax'))
+
+model.compile(optimizer='rmsprop',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+
+from keras.utils.np_utils import to_categorical
+data_1 = np.random.random((1000, 600))
+data_2 = np.random.random((1000, 600))
+
+# these are integers between 0 and 9
+labels = np.random.randint(10, size=(1000, 1))
+# we convert the labels to a binary matrix of size (1000, 10)
+# for use with categorical_crossentropy
+labels = to_categorical(labels, 10)
+model.fit([data_1,data_2], labels, nb_epoch=10, batch_size=32)
+
+plot(model, to_file='model2.png',show_shapes=True)
