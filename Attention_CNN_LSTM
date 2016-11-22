@@ -1,0 +1,84 @@
+
+from keras.layers import Merge
+import numpy as np
+np.random.seed(1337)  # for reproducibility
+
+from keras.preprocessing import sequence
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation
+from keras.layers import Embedding
+from keras.layers import Convolution1D, GlobalMaxPooling1D
+from keras.layers import LSTM
+from keras.datasets import imdb
+from keras import backend as K
+import theano.tensor as T
+
+# set parameters:
+max_features = 5000
+maxlen = 400
+batch_size = 32
+embedding_dims = 50
+nb_filter = 250
+filter_length = 3
+#hidden_dims = 250
+nb_epoch = 2
+
+print('Loading data...')
+(X_train, y_train), (X_test, y_test) = imdb.load_data(nb_words=max_features)
+print(len(X_train), 'train sequences')
+print(len(X_test), 'test sequences')
+
+print('Pad sequences (samples x time)')
+X_train = sequence.pad_sequences(X_train, maxlen=maxlen)
+X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
+print('X_train shape:', X_train.shape)
+print('X_test shape:', X_test.shape)
+
+
+print('Build model...')
+
+right_branch = Sequential()
+
+right_branch.add(Embedding(max_features,
+                    embedding_dims,
+                    input_length=maxlen
+                    ))
+
+right_branch.add(Convolution1D(
+                        nb_filter=nb_filter,
+                        filter_length=filter_length,
+                        border_mode='valid',
+                        activation='relu',
+                        subsample_length=1))
+
+left_branch = Sequential()
+left_branch.add(Embedding(max_features,
+                    embedding_dims,
+                    input_length=maxlen
+                    ))
+                 
+left_branch.add(LSTM(398,return_sequences=False)) 
+
+merged = Merge([left_branch,right_branch], mode='dot',output_shape=lambda x: x[0])
+
+final_model = Sequential()
+final_model.add(merged)               
+final_model.add(Dense(1))
+final_model.add(Activation('sigmoid'))
+print('compile...')
+final_model.compile(loss='binary_crossentropy',
+              optimizer='adam',
+              metrics=['accuracy'])
+print('fit...')            
+final_model.fit([X_train,X_train], y_train,
+          batch_size=1,
+          nb_epoch=nb_epoch,
+          validation_data=([X_test,X_test], y_test)
+          )
+
+score, acc = final_model.evaluate([X_test,X_test], y_test,batch_size=batch_size)
+print('Test score:', score)
+print('Test accuracy:', acc)
+
+from keras.utils.visualize_util import plot
+plot(final_model, to_file='model.png',show_shapes=True)
